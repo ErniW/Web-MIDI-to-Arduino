@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Web MIDI to arduino</title>
+</head>
+<body>
+
+	<script>
+
+		var selectedDevice = {};
+		var outputs, inputs;
+
+		//Get MIDI devices
+
+		if (navigator.requestMIDIAccess) {
+		    console.log("MIDI STARTED");
+
+		    var success = function(MIDI){
+		    	console.log(MIDI);
+
+		    	var getDevices = function(devices){
+
+		    		var list = {};
+
+		    		for (var i = devices.next(); i && !i.done; i = devices.next()) {
+		    			list[i.value.name] = i.value;
+		    		};
+
+		    		return list;
+		    	};
+
+		    	//Get the available devices.
+		    	outputs = getDevices(MIDI.outputs.values());
+		    	inputs = getDevices(MIDI.inputs.values());
+
+		    	console.log("Outputs:", outputs, "Inputs:", inputs);
+		    	
+		    	for (devices in outputs){
+
+		    		var option = document.createElement("option");
+		    		option.text = outputs[devices].name;
+		    		document.getElementById('list').add(option);
+
+		    	};
+		    	
+		    };
+
+		    var failure = function(){
+		    	console.error("MIDI error")
+		    };
+
+		    navigator.requestMIDIAccess().then(success, failure);
+    
+		}
+
+		//Listen for received value from pin A0 and change input value
+
+		var addListener = function(receivedData){
+			//receivedData.data[1] contains pin index
+			document.getElementById('read').value = receivedData.data[2];
+		}
+
+		//Change MIDI device
+
+		var changeDevice = function(name){
+
+			//Merge input and output of same device into single object
+			selectedDevice.output = outputs[name];
+			selectedDevice.input = inputs[name];
+
+
+			//Start listening for received notes
+			selectedDevice.input.onmidimessage = addListener;
+		};
+
+		//General purpose MIDI note on and off trigger.
+
+		var noteOn = function(pitch, velocity){
+			selectedDevice.output.send([0x92, pitch, velocity]);
+		}
+
+		var noteOff = function(pitch, velocity){
+			selectedDevice.output.send([0x82, pitch, velocity]);
+		}
+
+		//Received note on and off event
+
+		//Change pin 9 value
+
+		var changePWM = function(value){
+			if (value <= 127) noteOn(9,value);
+			else noteOff(9, value-128);
+		};
+
+	</script>
+
+	<!--HTML LAYOUT-->
+
+	<style>
+
+		body{
+			background: whitesmoke;
+		}
+
+		div{
+			width: 200px;
+			height: 200px;
+			margin: 200px auto;
+			background: white;
+			padding: 40px;
+			text-align: center;
+		}
+		
+	</style>
+
+	<div>
+		<p>Select the device:</p>
+		<select id="list" onchange="changeDevice(this.value)"></select>
+		
+		<p>Change LED brightness:</p>
+		<input type="range" id="range" max="255" value="0" oninput="changePWM(this.value)">
+
+		<p>Read the value:</p>
+		<input type="text" id="read" placeholder="Analog read value">
+	</div>
+
+</body>
+</html>
